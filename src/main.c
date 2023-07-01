@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
  
   N = atoi(argv[1]);
   
-  // One buffer for each process
+  // One buffer for each process' returned data.
   int** aggregated_buffers = (int**) malloc(P * sizeof(int*));
  
   if (_rank == 0)
@@ -50,7 +50,8 @@ int main(int argc, char* argv[])
     // Distribute samples with MPI
     distribute_samples_and_slices(data_s, regular_samples_s, P);
     
-    all_to_all_main(data_s, regular_samples);
+    // This all to all version will also aggregate the merged data from the processes.
+    all_to_all_main(data_s, regular_samples, aggregated_buffers);
     
     // The main process prints the sorted vector
     print_slice(s);
@@ -64,6 +65,7 @@ int main(int argc, char* argv[])
   // Finally, the main process needs to merge the data.
   
   // Merge data again
+  // Copy back to a vector or smth???
   parallel_merge(aggregated_buffers);
 
   MPI_Finalize();

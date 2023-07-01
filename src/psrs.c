@@ -43,7 +43,7 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
 	// Divide array by the number of threads
 	int* data = (int*) s.ptr;
 	size_t len = s.size;
-	size_t per_thread_len = (int) ceil(len / (float)P);
+	size_t per_thread_len = (int) ceilf(len / (float)P);
 	
 	int* samples = (int*) malloc(P * P * sizeof(int));
 	
@@ -58,20 +58,20 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
             // slowsort(data, );
             
             // Sample the vector
-        // TODO: Consider P instead of T (check if it is right)
+            // TODO: Consider P instead of T (check if it is right)
             for (int i = 0 ; i < P ; i++)
             {
                 size_t sample_index = i * (len / (P * P));
                 samples[tid * P + P] = data[sample_index];
             }
             
-            // We can iterate over the vector now
+        // We can iterate over the vector now
         //for (size_t i = start_idx; i < start_idx + per_thread_len; i += 1) {
         //}
     }
 	
 	// Sort the samples
-    Slice sample_slice = {samples, samples_size};
+  Slice sample_slice = {samples, samples_size};
 	slowsort(sample_slice);
 		
 	// Resample the samples
