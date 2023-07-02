@@ -50,16 +50,11 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
 	// Divide array by the number of threads
 	int *data = (int *) s.ptr;
 	size_t len = s.size;
-<<<<<<< HEAD
 	size_t per_thread_len = (int) ceil(len / (float) P);
-=======
-	size_t per_thread_len = (int) ceilf(len / (float)P);
->>>>>>> bb7c17a4955d3c35c461f1f19d28b07604c9224b
 	
 	int* samples = (int *) malloc(samples_size * sizeof(int));
 	
 	// Parallel region with shared array
-<<<<<<< HEAD
   // #pragma omp parallel num_threads(T) shared(data)
   #pragma omp parallel num_threads(P) shared(data, samples)
   {
@@ -71,28 +66,6 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
     // Adjust the last thread's stop index to include remaining elements
     if (tid == T - 1) {
       stop_idx += samples_size % T;
-=======
-    #pragma omp parallel num_threads(T) shared(data)
-    {
-        int tid = omp_get_thread_num(); // Starts at 0
-            size_t start_idx = tid * per_thread_len;
-            size_t stop_idx = min(start_idx + per_thread_len, s.b);
-            
-            // Perform the slowsort in the local data.
-            // slowsort(data, );
-            
-            // Sample the vector
-            // TODO: Consider P instead of T (check if it is right)
-            for (int i = 0 ; i < P ; i++)
-            {
-                size_t sample_index = i * (len / (P * P));
-                samples[tid * P + P] = data[sample_index];
-            }
-            
-        // We can iterate over the vector now
-        //for (size_t i = start_idx; i < start_idx + per_thread_len; i += 1) {
-        //}
->>>>>>> bb7c17a4955d3c35c461f1f19d28b07604c9224b
     }
 
     int j = tid * P;
