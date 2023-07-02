@@ -139,6 +139,9 @@ void all_to_all(size_t P, size_t N, int rank)
     print_slice_rank(s, rank);
     
     // TODO: actually send and receive the slices. Find a way to collect the slices from the other processes.
+    // MPI_Send_async();
+    // MPI_Recv(); // TODO where? in place? New array?
+    // Wait for the data to be safely sent, and if not do some error checking...idk
   }
   
   free(samples_to_index);
