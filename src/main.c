@@ -27,6 +27,7 @@ July 2023
 #include "../headers/defines.h"
 #include "../headers/psrs.h"
 #include "../headers/slice.h"
+#include "../headers/mpi_routines.h"
 
 // Global parameters
 size_t P;
@@ -105,10 +106,9 @@ int main(int argc, char* argv[])
 
       slowsort(thr_slice);
     }
-
-    // print_slice(data_s);
-
-    /* --------------------------------- OK --------------------------------- */
+    
+    printf("Data after step 1:\n");
+    print_slice(data_s);
 
     P = 3; // REMOVER DEPOIS !! (DEBUGGING)
 
@@ -118,15 +118,24 @@ int main(int argc, char* argv[])
     // local_sort_and_sample(data_s, regular_samples_s, P);
     local_sort_and_sample(data_s, regular_samples, P);
 
+    printf("Samples: \n");
     print_slice(regular_samples_s);
 
-    // // Distribute samples with MPI
-    // distribute_samples_and_slices(data_s, regular_samples_s, P);
+    /* --------------------------------- OK --------------------------------- */
+    
+    // Distribute samples with MPI
+    //distribute_samples_and_slices(data_s, regular_samples_s, P);
     
     // all_to_all_main(data_s, regular_samples);
     
     // // The main process prints the sorted vector
     // print_slice(s);
+    
+    all_to_all_main(data_s, regular_samples_s, P, N, _rank);
+  }
+  else
+  {
+    all_to_all(P, N, _rank);
   }
   // else
   // {
@@ -160,3 +169,7 @@ int test_slowsort() {
   return 0;
 }
 */
+
+#include "mpi_routines.c"
+#include "psrs.c"
+#include "slice.c"

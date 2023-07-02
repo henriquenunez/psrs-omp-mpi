@@ -103,7 +103,7 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
 	for (i = 1 ; i <= P - 1 ; i++)
 	{
 		size_t sample_index = (i * P) + (P / 2) - 1;
-		samples_out[i] = samples[sample_index];
+		samples_out[i-1] = samples[sample_index];
 	}
 
   // samples_out[i] = samples[(i * P) + (P / 2)];
