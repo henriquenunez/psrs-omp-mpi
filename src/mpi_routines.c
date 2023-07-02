@@ -10,11 +10,7 @@
 #include <omp.h>
 
 #include "../headers/defines.h"
-
-typedef struct _Range
-{
-  int start, stop;
-} Range;
+#include "../headers/slice.h"
 
 Range get_range(Slice local_data_s, int* samples_to_index, int j, int P)
 {
@@ -25,39 +21,18 @@ Range get_range(Slice local_data_s, int* samples_to_index, int j, int P)
     start = 0;
     stop = samples_to_index[j];
   }
-  else if (j == P-1)
+  else if (j == P - 1)
   {
-    start = samples_to_index[j-1];
+    start = samples_to_index[j - 1];
     stop = local_data_s.size;
   }
   else
   {
-    start = samples_to_index[j-1];
+    start = samples_to_index[j - 1];
     stop = samples_to_index[j];      
   }
   
   return (Range){start, stop};
-}
-
-Slice split_data(Slice data_s, int i, int Total)
-{
-  int N = data_s.size;
-  int thread_num = i;
-  
-  //#pragma omp parallel num_threads(T) // Step (a) to (b)
-  //int thread_num = omp_get_thread_num();
-  int low = thread_num * (N / Total);
-  int high = (thread_num + 1) * (N / Total) - 1;
-
-  // Adjust the last thread's high index to include remaining elements
-  if (thread_num == T - 1) {
-    high += N % Total;
-  }
-
-  size_t slice_size = high - low + 1;
-  Slice thr_slice = {&((int*)data_s.ptr)[low], slice_size};
-
-  return thr_slice;
 }
 
 int* index_samples(Slice data_s, Slice samples)
@@ -84,81 +59,102 @@ void _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
 {
   // Index each sample with the local data
   int* samples_to_index = index_samples(local_data_s, pivots_s);
-  printf("[%d] indexed samples\n", rank);
-  print_slice_rank((Slice){samples_to_index, pivots_s.size}, rank);
+  // printf("[%d] indexed samples\n", rank);
+  // print_slice_rank((Slice){samples_to_index, pivots_s.size}, rank);
   
   bool first_pass = true;
   for (int j = rank; ; j++) {
-    printf("[%d] j = %d\n", rank, j);
+    // printf("[%d] j = %d\n", rank, j);
 
     j = j % P;
 
     int send_to = (j + 1) % P;
     int recv_from = (j - 1 + P) % P;
 
-    printf("[%d] j = %d send_to = %d recv_from = %d\n", rank, j, send_to, recv_from);
+    // printf("[%d] j = %d send_to = %d recv_from = %d\n", rank, j, send_to, recv_from);
 
     if (first_pass)
-        first_pass = false;
+      first_pass = false;
     else if (j == rank) {
-        printf("[%d] finished sending\n", rank);
-        break;
+      printf("[%d] finished sending\n", rank);
+      break;
     }
 
-    Range send_range = get_range(local_data_s, samples_to_index, j, P);
+    // Range send_range = get_range(local_data_s, samples_to_index, j, P);
+    Range send_range = get_range(local_data_s, samples_to_index, send_to, P);
     int start = send_range.start;
     int stop = send_range.stop;
     Slice s = {local_data_s.ptr + sizeof(int) * start, stop - start};
     size_t slice_size = s.size * sizeof(int); // Calculate the slice size in bytes
 
-    if (rank != j)
-        printf("[%d] slice to be sent to %d [%d:%d]\n", rank, j, start, stop);
+    if (rank != send_to)
+      printf("[%d] slice to be sent to %d [%d:%d]\n", rank, send_to, start, stop);
     else
-        printf("[%d] my slice [%d:%d]\n", rank, start, stop);
+      printf("[%d] my slice [%d:%d]\n", rank, start, stop);
     print_slice_rank(s, rank);
 
-    // Send the size of the slice to the send_to rank
     MPI_Request size_send_request;
-    MPI_Isend(&slice_size, 1, MPI_UNSIGNED_LONG, send_to, 0, MPI_COMM_WORLD, &size_send_request);
-    printf("[%d] (async) sending slice size to %d\n", rank, send_to);
+    // Send the size of the slice to the send_to rank
+    if(send_to != rank) // Avoid sending to itself
+    {
+      MPI_Isend(&slice_size, 1, MPI_UNSIGNED_LONG, send_to, 0, MPI_COMM_WORLD, &size_send_request);
+      // printf("[%d] (async) sending slice size to %d\n", rank, send_to);
+    }
 
-    // Receive the size of the slice from the recv_from rank
     size_t recv_size;
     MPI_Request size_recv_request;
-    MPI_Irecv(&recv_size, 1, MPI_UNSIGNED_LONG, recv_from, 0, MPI_COMM_WORLD, &size_recv_request);
-    printf("[%d] (async) receiving slice size from %d\n", rank, recv_from);
+    // Receive the size of the slice from the recv_from rank
+    if(recv_from != rank) { // Avoid receiving from itself
+      MPI_Irecv(&recv_size, 1, MPI_UNSIGNED_LONG, recv_from, 0, MPI_COMM_WORLD, &size_recv_request);
+      // printf("[%d] (async) receiving slice size from %d\n", rank, recv_from);
+    }
 
     // Wait for the size communication to complete
-    MPI_Wait(&size_send_request, MPI_STATUS_IGNORE);
-    printf("[%d] sent slice size [%zu]B to %d\n", rank, slice_size, send_to);
-    MPI_Wait(&size_recv_request, MPI_STATUS_IGNORE);
-    printf("[%d] received slice size [%zu]B from %d\n", rank, recv_size, recv_from);
+    if(rank != send_to)
+    {
+      MPI_Wait(&size_send_request, MPI_STATUS_IGNORE);
+      // printf("[%d] sent slice size [%zu]B to %d\n", rank, slice_size, send_to);
+    }
+
+    if(rank != recv_from) {
+      MPI_Wait(&size_recv_request, MPI_STATUS_IGNORE);
+      // printf("[%d] received slice size [%zu]B from %d\n", rank, recv_size, recv_from);
+    }
 
     // Allocate memory for the received slice
     int* recv_slice = malloc(recv_size);
-    if (recv_slice == NULL)
-    {
-        printf("[%d] error in malloc! Abort!", rank);
-    }
+    if (recv_slice == NULL) printf("[%d] error in malloc! Abort!", rank);
 
     // TODO: Perform error checking and handle communication errors
 
-    // Send the slice to the send_to rank
     MPI_Request data_send_request;
-    MPI_Isend(s.ptr, s.size, MPI_INT, send_to, 0, MPI_COMM_WORLD, &data_send_request);
-    printf("[%d] (async) sending slice to %d\n", rank, send_to);
+    if(rank != send_to) // Avoid sending to itself
+    {
+      // Send the slice to the send_to rank
+      MPI_Isend(s.ptr, s.size, MPI_INT, send_to, 0, MPI_COMM_WORLD, &data_send_request);
+      printf("[%d] (async) sending slice to %d\n", rank, send_to);
+    }
 
-    // Receive the slice from the recv_from rank
     MPI_Request data_recv_request;
-    MPI_Irecv(recv_slice, recv_size, MPI_INT, recv_from, 0, MPI_COMM_WORLD, &data_recv_request);
-    printf("[%d] (async) receiving slice from %d\n", rank, recv_from);
+    if(rank != recv_from) // Avoid receiving from itself
+    {
+      // Receive the slice from the recv_from rank
+      MPI_Irecv(recv_slice, recv_size, MPI_INT, recv_from, 0, MPI_COMM_WORLD, &data_recv_request);
+      printf("[%d] (async) receiving slice from %d\n", rank, recv_from);
+    }
 
-    // Wait for the data communication to complete
-    MPI_Wait(&data_send_request, MPI_STATUS_IGNORE);
-    printf("[%d] sent slice to %d\n", rank, send_to);
-    MPI_Wait(&data_recv_request, MPI_STATUS_IGNORE);
-    printf("[%d] received slice from %d\n", rank, recv_from);
-    
+    if(rank != send_to)
+    {
+      // Wait for the data communication to complete
+      MPI_Wait(&data_send_request, MPI_STATUS_IGNORE);
+      printf("[%d] sent slice to %d\n", rank, send_to);
+    }
+
+    if(rank != recv_from)
+    {
+      MPI_Wait(&data_recv_request, MPI_STATUS_IGNORE);
+      printf("[%d] received slice from %d\n", rank, recv_from);
+    }
     Slice recv_s = {recv_slice, recv_size / sizeof(int)};
     print_slice_rank(recv_s, rank);
 
@@ -215,21 +211,21 @@ void all_to_all_main(Slice data_s, Slice pivots_s, size_t P, size_t N, int rank)
     3- Send the actual data
     4- Act like a normal rank??*/
  
-  printf("[%d] allocating pivots\n", rank);
-  int* pivots = (int*) malloc((P-1) * sizeof(int));
+  // printf("[%d] allocating pivots\n", rank);
+  int *pivots = (int *) malloc((P - 1) * sizeof(int));
   
-  printf("[%d] memcpying pivots\n", rank);
-  memcpy(pivots, pivots_s.ptr, (P-1) * sizeof(int));
+  // printf("[%d] memcpying pivots\n", rank);
+  memcpy(pivots, pivots_s.ptr, (P - 1) * sizeof(int));
   
   // Broadcast the data from the root process to all other processes
-  printf("[%d] broadcasting pivots\n", rank);
-  MPI_Bcast(pivots, P-1, MPI_INT, 0, MPI_COMM_WORLD);
+  // printf("[%d] broadcasting pivots\n", rank);
+  MPI_Bcast(pivots, P - 1, MPI_INT, 0, MPI_COMM_WORLD);
   
-  print_slice_rank((Slice){pivots, P-1}, rank);
+  // print_slice_rank((Slice){pivots, P - 1}, rank);
   
   Slice local_data_s;
   
-  printf("[%d] spreading data\n", rank);
+  // printf("[%d] spreading data\n", rank);
   for (int i = 0 ; i < P ; i++)
   {
     // Compute the data slice for each process
@@ -240,9 +236,9 @@ void all_to_all_main(Slice data_s, Slice pivots_s, size_t P, size_t N, int rank)
       continue;
     }
     
-    printf("[%d] sending data size (%zu) to %d\n", rank, p_slice.size, i);
+    // printf("[%d] sending data size (%zu) to %d\n", rank, p_slice.size, i);
     MPI_Send(&(p_slice.size), 1, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD);
-    printf("[%d] sending data to %d\n", rank, i);
+    // printf("[%d] sending data to %d\n", rank, i);
     MPI_Send(p_slice.ptr, p_slice.size, MPI_INT, i, 0, MPI_COMM_WORLD);
   }
   
@@ -253,27 +249,27 @@ void all_to_all_main(Slice data_s, Slice pivots_s, size_t P, size_t N, int rank)
 
 void all_to_all(size_t P, size_t N, int rank)
 {
-  printf("[%d] allocating pivots\n", rank);
-  int* pivots = (int*) malloc((P-1) * sizeof(int));
+  // printf("[%d] allocating pivots\n", rank);
+  int *pivots = (int *) malloc((P - 1) * sizeof(int));
   
   // Broadcast the data from the root process to all other processes
-  printf("[%d] receiving broadcasted pivots\n", rank);
-  MPI_Bcast(pivots, P-1, MPI_INT, 0, MPI_COMM_WORLD);
+  // printf("[%d] receiving broadcasted pivots\n", rank);
+  MPI_Bcast(pivots, P - 1, MPI_INT, 0, MPI_COMM_WORLD);
   
-  Slice pivots_s = {pivots, P-1};
-  print_slice_rank(pivots_s, rank);
+  Slice pivots_s = {pivots, P - 1};
+  // print_slice_rank(pivots_s, rank);
   
   // Receive the data size from the main process
   int data_size;
   MPI_Recv(&data_size, 1, MPI_UNSIGNED_LONG, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  printf("[%d] received data size (%d)\n", rank, data_size);
+  // printf("[%d] received data size (%d)\n", rank, data_size);
   
   // Now, receive the actual data
-  int* data_ptr = (int*) malloc(data_size * sizeof(int));
+  int *data_ptr = (int *) malloc(data_size * sizeof(int));
   MPI_Recv(data_ptr, data_size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  printf("[%d] received full data\n", rank);
+  // printf("[%d] received full data\n", rank);
   Slice local_data_s = {data_ptr, data_size};
-  print_slice_rank(local_data_s, rank);
+  // print_slice_rank(local_data_s, rank);
   
   _all_to_all(local_data_s, pivots_s, P, rank);
   

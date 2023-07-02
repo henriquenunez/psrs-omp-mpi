@@ -13,4 +13,9 @@ typedef struct _Slice
   size_t size;
 } Slice;
 
+typedef struct _Range
+{
+  int start, stop;
+} Range;
+
 #endif

@@ -3,13 +3,13 @@
 Alunos:
 Carolina Mokarzel                 N USP 
 
-Felipi Adenildo                   N USP
+Felipi Adenildo Soares Sousa      N USP 10438790
 
 Gustavo Romanini Gois Barco       N USP 10749202
 
 Henrique Hiram Libutti Núñez      N USP 11275300
 
-Joao Alexandro Ferraz             N USP
+João Alexandro Ferraz             N USP 11800441
 
 Luiz Fernando Rissotto de Jesus   N USP 11200268
 

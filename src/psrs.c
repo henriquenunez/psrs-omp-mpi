@@ -94,7 +94,7 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
 	// Sort the samples
   Slice sample_slice = {samples, samples_size};
 	slowsort(sample_slice);
-  print_slice(sample_slice);
+  // print_slice(sample_slice);
 		
   /* --------------------------------- OK --------------------------------- */
 

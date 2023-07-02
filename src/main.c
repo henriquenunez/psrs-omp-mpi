@@ -9,8 +9,8 @@ July 2023
 * Carolina Mokarzel               N USP 
 * Felipi Adenildo Soares Sousa    N USP 10438790
 * Gustavo Romanini Gois Barco     N USP 10749202
-* Henrique Nunez
-* Joao Alexandro Ferraz           N USP
+* Henrique Hiram Libutti Nunez    N USP 11275300
+* Joao Alexandro Ferraz           N USP 11800441
 * Luiz Fernando Rissotto de Jesus N USP 11200268
 */
 
@@ -107,8 +107,8 @@ int main(int argc, char* argv[])
       slowsort(thr_slice);
     }
     
-    printf("Data after step 1:\n");
-    print_slice(data_s);
+    // printf("Data after step 1:\n");
+    // print_slice(data_s);
 
     P = 3; // REMOVER DEPOIS !! (DEBUGGING)
 
@@ -118,8 +118,8 @@ int main(int argc, char* argv[])
     // local_sort_and_sample(data_s, regular_samples_s, P);
     local_sort_and_sample(data_s, regular_samples, P);
 
-    printf("Samples: \n");
-    print_slice(regular_samples_s);
+    // printf("Samples: \n");
+    // print_slice(regular_samples_s);
 
     /* --------------------------------- OK --------------------------------- */
     
@@ -170,6 +170,6 @@ int test_slowsort() {
 }
 */
 
-#include "mpi_routines.c"
-#include "psrs.c"
-#include "slice.c"
+// #include "mpi_routines.c"
+// #include "psrs.c"
+// #include "slice.c"
