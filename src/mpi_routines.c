@@ -8,29 +8,75 @@
 
 #include <omp.h>
 
+#include "../headers/defines.h"
 
 void all_to_all_main(Slice data, Slice samples)
 {
   // If we are running it in the main process, the array is already there.
+  /*1- Send samples for non 0 ranks
+    2- Send the size of the data
+    3- Send the actual data
+    4- Act like a normal rank??*/
 }
 
-void all_to_all()
+void all_to_all(size_t P, size_t N)
 {
   // Receive data from MPI
-  int* samples = (int*) malloc((P-1) * sizeof(int));
-  int* samples_to_index = (int*) malloc((P-1) * sizeof(int));
+  int error_code;
+  int* samples = (int *) malloc((P - 1) * sizeof(int));
+  int* samples_to_index = (int *) malloc((P - 1) * sizeof(int));
   size_t data_size;
+  MPI_Status status;
   
   // TODO: error check
   // Receive samples from rank 0;
   MPI_Recv(samples, (P-1), MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
+
+  MPI_Get_error_code(status, &error_code);
+
+  if(error_code != MPI_SUCCESS)
+  {
+    // error treatment
+    char error_string[MPI_MAX_ERROR_STRING];
+    int length;
+
+    MPI_Error_string(error_code, error_string, &length);
+    printf("Erro na chamada MPI_Recv: %s\n", error_string);
+    return;
+  }
   
   // First receive the size of the data being received
   MPI_Recv(&data_size, 1, MPI_UINT, 0, 1, MPI_COMM_WORLD, &status);
+
+  MPI_Get_error_code(status, &error_code);
+
+  if(error_code != MPI_SUCCESS){
+    // error treatment
+    char error_string[MPI_MAX_ERROR_STRING];
+    int length;
+
+    MPI_Error_string(error_code, error_string, &length);
+    printf("Erro na chamada MPI_Recv: %s\n", error_string);
+    return;
+  }
+
   void* data = malloc(data_size * sizeof(int));
   // Then actually receive the data
   MPI_Recv(data, data_size, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
  
+  MPI_Get_error_code(status, &error_code);
+
+  if(error_code != MPI_SUCCESS)
+  {
+    // error treatment
+    char error_string[MPI_MAX_ERROR_STRING];
+    int length;
+
+    MPI_Error_string(error_code, error_string, &length);
+    printf("Erro na chamada MPI_Recv: %s\n", error_string);
+    return;
+  }
+
   // Index the samples wrt to the data
   int i = 0;
   for (int j = 0 ; j < N ; j++)
@@ -103,7 +149,8 @@ void distribute_samples_and_slices(Slice data, Slice regular_samples, size_t P)
   for (int r = 1 ; r < P ; r++) // We skip rank 0 since it is the main process' rank
   {
     size_t start_idx = r * per_thread_len;
-    size_t stop_idx = min(start_idx + per_thread_len, s.b);
+    // size_t stop_idx = min(start_idx + per_thread_len, s.b);
+    size_t stop_idx = fmin(start_idx + per_thread_len, start_idx + (s.size - 1));
     
     // Sending both arrays
     MPI_Send(regular_samples.ptr, regular_samples.len, MPI_INT, r, 1, MPI_COMM_WORLD);

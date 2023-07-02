@@ -8,7 +8,7 @@ SRC = ./src
 # Flag -I: include
 INC = -I ./headers
 
-FLAGS = -Wall -Werror
+FLAGS = -fopenmp -lm -Wall -Werror
 
 # OUTPUT (Program) #
 OUTPUT = psrs
@@ -18,7 +18,9 @@ OBJECTS: mpi_routines.o psrs.o slice.o
 
 # Flag -o: output
 all: $(OBJECTS)
-	$(COMP) $(SRC)/main.c $(OBJECTS) -o $(OUTPUT) $(INC) $(FLAGS)
+#	$(COMP) $(SRC)/main.c $(OBJECTS) -o $(OUTPUT) $(INC) $(FLAGS)
+	$(COMP) $(SRC)/main.c $(SRC)/psrs.c $(SRC)/slice.c -o $(OUTPUT) $(INC) $(FLAGS)
+# $(COMP) $(SRC)/*.c -o $(OUTPUT) $(INC) $(FLAGS)
 
 # Instructions to make *.o #
 %.o: $(SRC)/%.c
