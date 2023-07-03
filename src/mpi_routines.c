@@ -246,12 +246,12 @@ Slice _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
     // MPI_Send(p_slice.ptr, p_slice.size, MPI_INT, i, 0, MPI_COMM_WORLD);
     size_t *recvbuf_sizet = (size_t *) malloc(sizeof(size_t) * P);
 
-    MPI_Gather(&(new_slice.size), 1, MPI_UNSIGNED_LONG, &recvbuf_sizet, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    MPI_Gather(&new_slice.size, 1, MPI_UNSIGNED_LONG, recvbuf_sizet, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 
-    int *recvbuf_int = (int *) malloc(sizeof(int) * new_slice.size);
-    int *sizes = (int *) malloc(sizeof(int) * P);
-    int *displs = (int *) malloc(sizeof(int) * P);
-    MPI_Gatherv((int *) new_slice.ptr, new_slice.size, MPI_INT, &recvbuf_int, sizes, displs, MPI_INT, 0, MPI_COMM_WORLD);
+    //int *recvbuf_int = (int *) malloc(sizeof(int) * new_slice.size);
+    //int *sizes = (int *) malloc(sizeof(int) * P);
+    //int *displs = (int *) malloc(sizeof(int) * P);
+    MPI_Gatherv((int *) new_slice.ptr, new_slice.size, MPI_INT, NULL, NULL, NULL, MPI_INT, 0, MPI_COMM_WORLD);
   }
 
   return new_slice;

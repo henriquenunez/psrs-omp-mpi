@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
     // For debugging
     int arr[] = {15, 46, 48, 93, 39, 6, 72, 91, 14, 36, 69, 40, 89, 61, 97, 12, 21, 54, 53, 97, 84, 58, 32, 27, 33, 72, 20};
     Slice data_s = {arr, N};
-    void *final_slice_ptr = (void *) calloc(N, sizeof(int));
+    int *final_slice_ptr = (int *) calloc(N, sizeof(int));
     Slice final_slice = {final_slice_ptr, N};
 
     #pragma omp parallel num_threads(T) // Step (a) to (b)
@@ -135,54 +135,68 @@ int main(int argc, char* argv[])
     Slice root_slice = all_to_all_main(data_s, regular_samples_s, P, N, _rank);
 
     size_t *slices_sizes = (size_t *) malloc(sizeof(size_t) * P);
+    int *slices_sizes_int = (int *) malloc(sizeof(int) * P);
+    MPI_Gather(&root_slice.size, 1, MPI_UNSIGNED_LONG, slices_sizes, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 
-    size_t *sendbuf_sizet = (size_t *) malloc(sizeof(size_t) * P);
-    MPI_Gather(&sendbuf_sizet, 1, MPI_UNSIGNED_LONG, slices_sizes, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-
-    // slices_sizes[0] = root_slice.size;
-    slices_sizes[0] = 0;
+    slices_sizes[0] = root_slice.size;
+    //slices_sizes[0] = 0;
 
     for(int i = 0; i < P; i++) printf("slices_sizes[%d]: %zu\n", i, slices_sizes[i]);
+    for(int i = 0; i < P; i++) slices_sizes_int[i] = slices_sizes[i];
 
+    // Calculate displacements.
     int *displs = (int *) malloc(sizeof(int) * P);
     displs[0] = 0;
     for(int i = 1; i < P; i++)
     {
-      if(i - 1 == 0) displs[i] += displs[i - 1] + root_slice.size;
-      else displs[i] += displs[i - 1] + slices_sizes[i - 1];
-      // displs[i] += displs[i - 1] + slices_sizes[i - 1];
+      //if(i - 1 == 0) displs[i] += displs[i - 1] + root_slice.size;
+      //else displs[i] += displs[i - 1] + slices_sizes[i - 1];
+      displs[i] += displs[i - 1] + slices_sizes[i - 1];
     }
 
     printf("displs:\n");
     for(int i = 0; i < P; i++) printf("displs[%d]: %d\n", i, displs[i]);
 
-
-    for(int i = 0; i < final_slice.size; i++)
+    for(int i = 0; i < root_slice.size; i++) // Copying root data
       ((int *) final_slice.ptr)[i] = ((int *) root_slice.ptr)[i];
 
-    int *sendbuf_int = (int *) malloc(sizeof(int) * N);
-
+    //print_slice(final_slice);
+    MPI_Gatherv(root_slice.ptr, root_slice.size, MPI_INT, final_slice.ptr, slices_sizes_int, displs, MPI_INT, 0, MPI_COMM_WORLD);
     print_slice(final_slice);
-
-    MPI_Gatherv(sendbuf_int, N, MPI_INT, (int *) final_slice.ptr, (int *) slices_sizes, displs, MPI_INT, 0, MPI_COMM_WORLD);
-
-    print_slice(final_slice);
+    
+    #pragma omp parallel num_threads(T) // TODO: Change T to P
+    {
+      // it's simple to compute slices cus we know the sizes already...
+      int thread_num = omp_get_thread_num();
+      
+      size_t buffer_offset = 0;
+      for (int i = 0 ; i < thread_num ; i++)
+      {
+        buffer_offset += slices_sizes_int[i];
+      }
+      
+      int* start_slice = ((int*)final_slice.ptr) + buffer_offset; // Compute the offset
+      
+      Slice thr_slice = {start_slice, slices_sizes_int[thread_num]};
+      slowsort(thr_slice);
+      
+      // TODO: print sorted slice?
+      
+      #pragma omp critical
+      {
+        print_slice_rank(thr_slice, thread_num);
+        
+      }
+      
+    }
+    
+    print_slice_rank(final_slice, 0);
   }
   else
   {
     all_to_all(P, N, _rank);
   }
-  // else
-  // {
-  //   // Perform the all-to-all data exchange and merge.
-  //   all_to_all();
-  // }
   
-  // // Finally, the main process needs to merge the data.
-  
-  // // Merge data again
-  // parallel_merge(aggregated_buffers);
-
   MPI_Finalize();
   
   return 0;
