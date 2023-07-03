@@ -55,7 +55,7 @@ int* index_samples(Slice data_s, Slice samples)
   return samples_to_index;
 }
 
-void _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
+Slice _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
 {
   // Index each sample with the local data
   int* samples_to_index = index_samples(local_data_s, pivots_s);
@@ -63,6 +63,7 @@ void _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
   // print_slice_rank((Slice){samples_to_index, pivots_s.size}, rank);
   
   bool first_pass = true;
+  Slice *slices_ptr = malloc(sizeof(Slice) * P); // Slice pointer w/ P positions
   for (int j = rank; ; j++) {
     // printf("[%d] j = %d\n", rank, j);
 
@@ -87,10 +88,13 @@ void _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
     Slice s = {local_data_s.ptr + sizeof(int) * start, stop - start};
     size_t slice_size = s.size * sizeof(int); // Calculate the slice size in bytes
 
-    if (rank != send_to)
+    if(rank != send_to)
       printf("[%d] slice to be sent to %d [%d:%d]\n", rank, send_to, start, stop);
     else
+    {
       printf("[%d] my slice [%d:%d]\n", rank, start, stop);
+      slices_ptr[rank] = s;
+    }
     print_slice_rank(s, rank);
 
     MPI_Request size_send_request;
@@ -155,14 +159,46 @@ void _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
       MPI_Wait(&data_recv_request, MPI_STATUS_IGNORE);
       printf("[%d] received slice from %d\n", rank, recv_from);
     }
-    Slice recv_s = {recv_slice, recv_size / sizeof(int)};
-    print_slice_rank(recv_s, rank);
+
+    if(rank != recv_from) {
+      Slice recv_s = {recv_slice, recv_size / sizeof(int)};
+      print_slice_rank(recv_s, rank);
+      slices_ptr[recv_from] = recv_s;
+    } // else {
+      // slices_ptr[rank] = aux_s;
+    // }
 
     // TODO: Process the received slice as needed
+    
 
     // Clean up the memory used for the received slice
-    free(recv_slice);
+    // free(recv_slice);
   }
+
+  Slice new_slice;
+  new_slice.size = 0;
+  for(int i = 0; i < P; i++)
+  {
+    new_slice.size += slices_ptr[i].size;
+  }
+
+  printf("[%d] My final slice size: %zu\n", rank, new_slice.size);
+
+  new_slice.ptr = (void *) malloc(sizeof(int) * new_slice.size);
+
+  int idx = 0;
+  for(int i = 0; i < P; i++)
+  {
+    for(int j = 0; j < slices_ptr[i].size; j++)
+    {
+      ((int *) new_slice.ptr)[idx++] = ((int *) slices_ptr[i].ptr)[j];
+    }
+  }
+
+  printf("[%d] My final slice:\n", rank);
+  print_slice(new_slice);
+
+  /* ---------------------------------- OK ---------------------------------- */
 
   /*
   // Send data to the respective processes
@@ -201,9 +237,27 @@ void _all_to_all(Slice local_data_s, Slice pivots_s, int P, int rank)
   
   printf("[%d] exitting all to all\n", rank);
   free(samples_to_index);
+
+  if(rank != 0)
+  {
+    // // printf("[%d] sending data size (%zu) to %d\n", rank, p_slice.size, i);
+    // MPI_Send(&(p_slice.size), 1, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD);
+    // // printf("[%d] sending data to %d\n", rank, i);
+    // MPI_Send(p_slice.ptr, p_slice.size, MPI_INT, i, 0, MPI_COMM_WORLD);
+    size_t *recvbuf_sizet = (size_t *) malloc(sizeof(size_t) * P);
+
+    MPI_Gather(&(new_slice.size), 1, MPI_UNSIGNED_LONG, &recvbuf_sizet, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+
+    int *recvbuf_int = (int *) malloc(sizeof(int) * new_slice.size);
+    int *sizes = (int *) malloc(sizeof(int) * P);
+    int *displs = (int *) malloc(sizeof(int) * P);
+    MPI_Gatherv((int *) new_slice.ptr, new_slice.size, MPI_INT, &recvbuf_int, sizes, displs, MPI_INT, 0, MPI_COMM_WORLD);
+  }
+
+  return new_slice;
 }
 
-void all_to_all_main(Slice data_s, Slice pivots_s, size_t P, size_t N, int rank)
+Slice all_to_all_main(Slice data_s, Slice pivots_s, size_t P, size_t N, int rank)
 {
   // If we are running it in the main process, the array is already there.
   /*1- Send samples (pivots) to non 0 ranks
@@ -244,7 +298,7 @@ void all_to_all_main(Slice data_s, Slice pivots_s, size_t P, size_t N, int rank)
   
   // Now, behave as a normal node
   // (Slice local_data_s, Slice pivots_s, int P, int rank)
-  _all_to_all(local_data_s, pivots_s, P, rank);
+  return _all_to_all(local_data_s, pivots_s, P, rank);
 }
 
 void all_to_all(size_t P, size_t N, int rank)

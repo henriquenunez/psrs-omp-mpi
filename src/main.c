@@ -89,6 +89,8 @@ int main(int argc, char* argv[])
     // For debugging
     int arr[] = {15, 46, 48, 93, 39, 6, 72, 91, 14, 36, 69, 40, 89, 61, 97, 12, 21, 54, 53, 97, 84, 58, 32, 27, 33, 72, 20};
     Slice data_s = {arr, N};
+    void *final_slice_ptr = (void *) calloc(N, sizeof(int));
+    Slice final_slice = {final_slice_ptr, N};
 
     #pragma omp parallel num_threads(T) // Step (a) to (b)
     {
@@ -121,7 +123,6 @@ int main(int argc, char* argv[])
     // printf("Samples: \n");
     // print_slice(regular_samples_s);
 
-    /* --------------------------------- OK --------------------------------- */
     
     // Distribute samples with MPI
     //distribute_samples_and_slices(data_s, regular_samples_s, P);
@@ -131,7 +132,41 @@ int main(int argc, char* argv[])
     // // The main process prints the sorted vector
     // print_slice(s);
     
-    all_to_all_main(data_s, regular_samples_s, P, N, _rank);
+    Slice root_slice = all_to_all_main(data_s, regular_samples_s, P, N, _rank);
+
+    size_t *slices_sizes = (size_t *) malloc(sizeof(size_t) * P);
+
+    size_t *sendbuf_sizet = (size_t *) malloc(sizeof(size_t) * P);
+    MPI_Gather(&sendbuf_sizet, 1, MPI_UNSIGNED_LONG, slices_sizes, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+
+    // slices_sizes[0] = root_slice.size;
+    slices_sizes[0] = 0;
+
+    for(int i = 0; i < P; i++) printf("slices_sizes[%d]: %zu\n", i, slices_sizes[i]);
+
+    int *displs = (int *) malloc(sizeof(int) * P);
+    displs[0] = 0;
+    for(int i = 1; i < P; i++)
+    {
+      if(i - 1 == 0) displs[i] += displs[i - 1] + root_slice.size;
+      else displs[i] += displs[i - 1] + slices_sizes[i - 1];
+      // displs[i] += displs[i - 1] + slices_sizes[i - 1];
+    }
+
+    printf("displs:\n");
+    for(int i = 0; i < P; i++) printf("displs[%d]: %d\n", i, displs[i]);
+
+
+    for(int i = 0; i < final_slice.size; i++)
+      ((int *) final_slice.ptr)[i] = ((int *) root_slice.ptr)[i];
+
+    int *sendbuf_int = (int *) malloc(sizeof(int) * N);
+
+    print_slice(final_slice);
+
+    MPI_Gatherv(sendbuf_int, N, MPI_INT, (int *) final_slice.ptr, (int *) slices_sizes, displs, MPI_INT, 0, MPI_COMM_WORLD);
+
+    print_slice(final_slice);
   }
   else
   {
@@ -152,24 +187,3 @@ int main(int argc, char* argv[])
   
   return 0;
 }
-
-/*
-int test_slowsort() {
-  int arr[] = { 7, 2, 1, 6, 8, 5, 3, 4 };
-  int size = sizeof(arr) / sizeof(arr[0]);
-  Slice s = {arr, size};
-  printf("Original array: ");
-  print_slice(s);
-
-  slowsort(arr, 0, size - 1);
-
-  printf("Sorted array: ");
-  print_slice(s);
-
-  return 0;
-}
-*/
-
-// #include "mpi_routines.c"
-// #include "psrs.c"
-// #include "slice.c"
