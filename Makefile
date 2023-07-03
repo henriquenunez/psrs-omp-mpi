@@ -27,7 +27,7 @@ all: $(OBJECTS)
 	$(COMP) -c $< $(INC) $(FLAGS) -o $@
 
 run:
-	mpirun -np 3 $(OUTPUT) 27
+	mpirun -np 4 $(OUTPUT) 6969 
 
 clean:
 	rm -f *.o

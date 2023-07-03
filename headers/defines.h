@@ -4,7 +4,8 @@
 #include <stdio.h>
 
 // #define T 8
-#define T 3
+// #define T 3
+#define T P
 #define MAX_INT_VALUE_ARR 10000
 
 typedef struct _Slice

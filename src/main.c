@@ -85,9 +85,9 @@ int main(int argc, char* argv[])
   if (_rank == 0)
   {
     // Create array
-    // int *arr = create_array(N);
+    int *arr = create_array(N);
     // For debugging
-    int arr[] = {15, 46, 48, 93, 39, 6, 72, 91, 14, 36, 69, 40, 89, 61, 97, 12, 21, 54, 53, 97, 84, 58, 32, 27, 33, 72, 20};
+    //int arr[] = {15, 46, 48, 93, 39, 6, 72, 91, 14, 36, 69, 40, 89, 61, 97, 12, 21, 54, 53, 97, 84, 58, 32, 27, 33, 72, 20};
     Slice data_s = {arr, N};
     int *final_slice_ptr = (int *) calloc(N, sizeof(int));
     Slice final_slice = {final_slice_ptr, N};
@@ -112,7 +112,7 @@ int main(int argc, char* argv[])
     // printf("Data after step 1:\n");
     // print_slice(data_s);
 
-    P = 3; // REMOVER DEPOIS !! (DEBUGGING)
+    // P = 3; // REMOVER DEPOIS !! (DEBUGGING)
 
     int *regular_samples = (int *) malloc((P - 1) * sizeof(int));
     Slice regular_samples_s = {regular_samples, P - 1};
@@ -134,24 +134,27 @@ int main(int argc, char* argv[])
     
     Slice root_slice = all_to_all_main(data_s, regular_samples_s, P, N, _rank);
 
-    size_t *slices_sizes = (size_t *) malloc(sizeof(size_t) * P);
+    size_t *slices_sizes = (size_t *) malloc(sizeof(size_t) * P);    
     int *slices_sizes_int = (int *) malloc(sizeof(int) * P);
+    
     MPI_Gather(&root_slice.size, 1, MPI_UNSIGNED_LONG, slices_sizes, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-
-    slices_sizes[0] = root_slice.size;
-    //slices_sizes[0] = 0;
-
-    for(int i = 0; i < P; i++) printf("slices_sizes[%d]: %zu\n", i, slices_sizes[i]);
     for(int i = 0; i < P; i++) slices_sizes_int[i] = slices_sizes[i];
 
+    slices_sizes_int[0] = root_slice.size;
+    //slices_sizes[0] = 0;
+
+    // for(int i = 0; i < P; i++) printf("slices_sizes[%d]: %zu\n", i, slices_sizes[i]);
+    for(int i = 0; i < P; i++) printf("slices_sizes[%d]: %d\n", i, slices_sizes_int[i]);
+    
     // Calculate displacements.
-    int *displs = (int *) malloc(sizeof(int) * P);
+    int *displs = (int *) calloc(P, sizeof(int));
     displs[0] = 0;
     for(int i = 1; i < P; i++)
     {
       //if(i - 1 == 0) displs[i] += displs[i - 1] + root_slice.size;
       //else displs[i] += displs[i - 1] + slices_sizes[i - 1];
-      displs[i] += displs[i - 1] + slices_sizes[i - 1];
+      displs[i] = displs[i - 1] + slices_sizes_int[i - 1];
+      printf("displs. %d + %d = %d\n", displs[i - 1], slices_sizes_int[i - 1], displs[i]);
     }
 
     printf("displs:\n");
