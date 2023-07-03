@@ -18,8 +18,6 @@ OBJECTS: mpi_routines.o psrs.o slice.o
 
 # Flag -o: output
 all: $(OBJECTS)
-#	$(COMP) $(SRC)/main.c -o $(OUTPUT) $(INC) $(FLAGS)
-# $(COMP) $(SRC)/main.c $(SRC)/psrs.c $(SRC)/slice.c -o $(OUTPUT) $(INC) $(FLAGS)
 	$(COMP) $(SRC)/*.c -o $(OUTPUT) $(INC) $(FLAGS)
 
 # Instructions to make *.o #
@@ -27,7 +25,7 @@ all: $(OBJECTS)
 	$(COMP) -c $< $(INC) $(FLAGS) -o $@
 
 run:
-	mpirun -np 4 $(OUTPUT) 6969 
+	mpirun -np 4 $(OUTPUT) 1000
 
 clean:
 	rm -f *.o

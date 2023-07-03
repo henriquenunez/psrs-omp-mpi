@@ -4,11 +4,12 @@
 #include "../headers/slice.h"
 
 void print_slice(Slice s) {
-  for (int i = 0; i < s.size; i++) {
-    printf("%d ", ((int *) s.ptr)[i]);
+  int i;
+  for(i = 0; i < s.size - 1; i++) {
+    printf("%d, ", ((int *) s.ptr)[i]);
   }
 
-  printf("\n");
+  printf("%d.", ((int *) s.ptr)[i]);
 }
 
 void print_slice_rank(Slice s, int rank) {
@@ -25,8 +26,6 @@ Slice split_data(Slice data_s, int i, int P)
   int N = data_s.size;
   int thread_num = i;
   
-  //#pragma omp parallel num_threads(T) // Step (a) to (b)
-  //int thread_num = omp_get_thread_num();
   int low = thread_num * (N / P);
   int high = (thread_num + 1) * (N / P) - 1;
 

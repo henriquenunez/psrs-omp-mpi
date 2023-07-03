@@ -43,7 +43,7 @@ void slowsort(Slice s) {
 }
 
 // NOTE: samples_out must be P * P long
-void local_sort_and_sample(Slice s, int* samples_out, size_t P)
+void local_sort_and_sample(Slice s, int *samples_out, size_t P)
 {
   size_t samples_size = P * P;
 
@@ -55,12 +55,11 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
 	int* samples = (int *) malloc(samples_size * sizeof(int));
 	
 	// Parallel region with shared array
-  // #pragma omp parallel num_threads(T) shared(data)
-  #pragma omp parallel num_threads(P) shared(data, samples)
+  // #pragma omp parallel num_threads(P) shared(data, samples)
+  #pragma omp parallel num_threads(T) shared(data, samples)
   {
     int tid = omp_get_thread_num(); // Starts at 0
     size_t start_idx = tid * per_thread_len;
-    // size_t stop_idx = min(start_idx + per_thread_len, start_idx + len);
     size_t stop_idx = ((tid + 1) * per_thread_len) - 1;
 
     // Adjust the last thread's stop index to include remaining elements
@@ -74,29 +73,12 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
     {
       samples[j++] = data[i];
     }
-
-    // Perform the slowsort in the local data.
-    // slowsort(data, );
-    
-    // Sample the vector
-    // TODO: Consider P instead of T (check if it is right)
-    // for (int i = 0 ; i < P ; i++)
-    // {
-    //   size_t sample_index = i * (len / (P * P));
-    //   samples[tid * P + P] = data[sample_index];
-    // }
-        
-    // // We can iterate over the vector now
-    // for (size_t i = start_idx; i < start_idx + per_thread_len; i += 1) {
-    // }
   }
 
 	// Sort the samples
   Slice sample_slice = {samples, samples_size};
 	slowsort(sample_slice);
   // print_slice(sample_slice);
-		
-  /* --------------------------------- OK --------------------------------- */
 
   int i;
 	// Resample the samples
@@ -106,27 +88,5 @@ void local_sort_and_sample(Slice s, int* samples_out, size_t P)
 		samples_out[i-1] = samples[sample_index];
 	}
 
-  // samples_out[i] = samples[(i * P) + (P / 2)];
-
-  // printf("\n\nsamples_out:\n");
-  // for(i = 0; i < P - 1; i++) printf("%d, ", samples_out[i]);
-
 	free(samples);
-}
-
-/*
-This function merges the data that was sent back from the multiple processes.
-Uses openmp and quicksort to acvhieve the job.
-*/
-void parallel_merge(int **vecs, size_t P) // TODO: replace with slice
-{
-  #pragma omp parallel num_threads(T)
-  {
-    // For each MPI process (same as the number of vectors to merge),
-    // create a task that will merge that vector.
-    for (int i = 0; i < P; i++)
-    {
-      // vecs[0]
-    }
-  }
 }
